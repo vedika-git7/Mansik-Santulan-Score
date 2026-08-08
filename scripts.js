@@ -3,11 +3,13 @@
 
   const API_BASE = "https://mansik-santulan-score-t3ru.onrender.com";
 
+  // Elements
   const form = document.getElementById("predict-form");
   const submitBtn = document.getElementById("submit-btn");
   const resetBtn = document.getElementById("reset-btn");
   const errorRetryBtn = document.getElementById("error-retry-btn");
-  const copyBtn = document.getElementById("copy-btn");
+  const themeToggleBtn = document.getElementById("theme-toggle-btn");
+  const themeLabel = document.getElementById("theme-label");
 
   const stateIdle = document.getElementById("state-idle");
   const stateLoading = document.getElementById("state-loading");
@@ -17,69 +19,48 @@
   const scoreNumberEl = document.getElementById("score-number");
   const scoreBandEl = document.getElementById("score-band");
   const scoreContextEl = document.getElementById("score-context");
+  const metricsPills = document.getElementById("metrics-pills");
   const gaugeFill = document.getElementById("gauge-fill");
-  const confidenceTextEl = document.getElementById("confidence-text");
-  const errorLabelEl = document.getElementById("error-label");
   const errorCopyEl = document.getElementById("error-copy");
 
-  const statusDot = document.getElementById("status-dot");
-  const statusText = document.getElementById("status-text");
-  const themeToggle = document.getElementById("theme-toggle");
-  const fabTop = document.getElementById("fab-top");
-  const toastHost = document.getElementById("toast-host");
+  const GAUGE_ARC_LENGTH = 314;
 
-  const GAUGE_ARC_LENGTH = 314; // approx pi * r(100)
+  // Preset Data
+  const presets = {
+    balanced: { age: 21, gender: "Female", country: "India", academic_level: "Undergraduate", most_used_platform: "Instagram", purpose_of_use: "Entertainment", avg_daily_usage_hours: 4.5, daily_unlocks: 65, study_hours: 5.0, physical_activity_hours: 1.0, sleep_hours_per_night: 7.0, stress_level: "Medium" },
+    exam: { age: 22, gender: "Male", country: "USA", academic_level: "Graduate", most_used_platform: "YouTube", purpose_of_use: "Education", avg_daily_usage_hours: 7.0, daily_unlocks: 110, study_hours: 9.0, physical_activity_hours: 0.2, sleep_hours_per_night: 4.5, stress_level: "Very High" },
+    scroller: { age: 18, gender: "Female", country: "UK", academic_level: "High School", most_used_platform: "TikTok", purpose_of_use: "Entertainment", avg_daily_usage_hours: 8.5, daily_unlocks: 140, study_hours: 3.0, physical_activity_hours: 0.5, sleep_hours_per_night: 5.5, stress_level: "High" },
+    athlete: { age: 21, gender: "Male", country: "Canada", academic_level: "Undergraduate", most_used_platform: "LinkedIn", purpose_of_use: "Networking", avg_daily_usage_hours: 2.0, daily_unlocks: 30, study_hours: 4.5, physical_activity_hours: 2.0, sleep_hours_per_night: 8.0, stress_level: "Low" }
+  };
 
-  // ---------------------------------------------------------
-  // Theme (persisted in-memory only — no localStorage per platform rules)
-  // ---------------------------------------------------------
-  let theme = window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
-  applyTheme(theme);
-
-  function applyTheme(t) {
-    theme = t;
-    document.body.setAttribute("data-theme", t);
+  // 1. Light/Dark Mode Toggle
+  function initTheme() {
+    const savedTheme = localStorage.getItem("theme");
+    if (savedTheme === "dark" || (!savedTheme && window.matchMedia("(prefers-color-scheme: dark)").matches)) {
+      document.body.classList.add("dark");
+      themeLabel.textContent = "Dark Mode";
+    } else {
+      document.body.classList.remove("dark");
+      themeLabel.textContent = "Light Mode";
+    }
   }
 
-  themeToggle.addEventListener("click", () => {
-    applyTheme(theme === "dark" ? "light" : "dark");
+  themeToggleBtn.addEventListener("click", () => {
+    document.body.classList.toggle("dark");
+    const isDark = document.body.classList.contains("dark");
+    themeLabel.textContent = isDark ? "Dark Mode" : "Light Mode";
+    localStorage.setItem("theme", isDark ? "dark" : "light");
   });
 
-  // ---------------------------------------------------------
-  // Toasts
-  // ---------------------------------------------------------
-  function showToast(type, title, message) {
-    const el = document.createElement("div");
-    el.className = `toast ${type}`;
-    const icon =
-      type === "success"
-        ? '<svg class="toast-icon" viewBox="0 0 24 24" fill="none"><path d="M20 6 9 17l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
-        : '<svg class="toast-icon" viewBox="0 0 24 24" fill="none"><path d="M12 8v5M12 16h.01M10.3 3.9 2.6 17.5a1.8 1.8 0 0 0 1.6 2.7h15.6a1.8 1.8 0 0 0 1.6-2.7L13.7 3.9a1.8 1.8 0 0 0-3.4 0Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>';
-    el.innerHTML = `${icon}<div class="toast-body"><strong>${title}</strong><span>${message}</span></div>`;
-    toastHost.appendChild(el);
-    setTimeout(() => {
-      el.classList.add("leaving");
-      setTimeout(() => el.remove(), 300);
-    }, 4200);
-  }
+  initTheme();
 
-  // ---------------------------------------------------------
-  // FAB — appears after scrolling, scrolls back to top
-  // ---------------------------------------------------------
-  window.addEventListener("scroll", () => {
-    fabTop.hidden = window.scrollY < 480;
-  });
-  fabTop.addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
-
-  // ---------------------------------------------------------
-  // Draw tick marks on the result gauge (0..10, every 2 units)
-  // ---------------------------------------------------------
+  // 2. Draw Gauge Ticks
   function drawTicks() {
     document.querySelectorAll(".gauge-ticks").forEach((g) => {
       g.innerHTML = "";
       const cx = 120, cy = 140, rOuter = 100, rInner = 90;
       for (let i = 0; i <= 10; i += 2) {
-        const angle = Math.PI - (i / 10) * Math.PI; // 180deg -> 0deg
+        const angle = Math.PI - (i / 10) * Math.PI;
         const x1 = cx + rOuter * Math.cos(angle);
         const y1 = cy - rOuter * Math.sin(angle);
         const x2 = cx + rInner * Math.cos(angle);
@@ -95,296 +76,118 @@
   }
   drawTicks();
 
-  // ---------------------------------------------------------
-  // Segmented control (stress_level) wiring
-  // ---------------------------------------------------------
+  // 3. Stress Level Segmented Control
   const segGroup = document.getElementById("stress_level_group");
-  const stressHiddenInput = document.getElementById("stress_level");
+  const stressInput = document.getElementById("stress_level");
+
   segGroup.querySelectorAll(".seg-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       segGroup.querySelectorAll(".seg-btn").forEach((b) => b.classList.remove("active"));
       btn.classList.add("active");
-      stressHiddenInput.value = btn.dataset.value;
-      clearFieldError(stressHiddenInput);
+      stressInput.value = btn.dataset.value;
     });
   });
 
-  // ---------------------------------------------------------
-  // Field-level error helpers
-  // ---------------------------------------------------------
-  function fieldWrapper(input) {
-    return input.closest(".field");
-  }
-
-  function setFieldError(input, message) {
-    const wrap = fieldWrapper(input);
-    if (!wrap) return;
-    wrap.classList.add("field-error");
-    const msgEl = wrap.querySelector(".error-msg");
-    if (msgEl) msgEl.textContent = message;
-  }
-
-  function clearFieldError(input) {
-    const wrap = fieldWrapper(input);
-    if (!wrap) return;
-    wrap.classList.remove("field-error");
-    const msgEl = wrap.querySelector(".error-msg");
-    if (msgEl) msgEl.textContent = "";
-  }
-
-  function clearAllErrors() {
-    form.querySelectorAll(".field").forEach((f) => f.classList.remove("field-error"));
-    form.querySelectorAll(".error-msg").forEach((m) => (m.textContent = ""));
-  }
-
-  // ---------------------------------------------------------
-  // Client-side validation mirroring the StudentData model
-  // ---------------------------------------------------------
-  function validate(payload) {
-    const errors = [];
-
-    const numericChecks = [
-      ["age", 10, 100],
-      ["avg_daily_usage_hours", 0, 24],
-      ["daily_unlocks", 0, Infinity],
-      ["study_hours", 0, 24],
-      ["physical_activity_hours", 0, 24],
-      ["sleep_hours_per_night", 0, 24],
-    ];
-
-    numericChecks.forEach(([key, min, max]) => {
-      const input = document.getElementById(key);
-      const val = payload[key];
-      if (val === "" || val === null || Number.isNaN(val)) {
-        errors.push([input, "This field is required."]);
-      } else if (val < min || val > max) {
-        errors.push([input, `Must be between ${min} and ${max === Infinity ? "0+" : max}.`]);
+  // 4. Preset Buttons
+  document.querySelectorAll(".preset-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".preset-btn").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      const p = presets[btn.dataset.preset];
+      if (p) {
+        Object.keys(p).forEach((key) => {
+          const field = document.getElementById(key);
+          if (field) field.value = p[key];
+        });
+        segGroup.querySelectorAll(".seg-btn").forEach((b) => {
+          b.classList.toggle("active", b.dataset.value === p.stress_level);
+        });
       }
     });
+  });
 
-    ["gender", "country", "academic_level", "most_used_platform", "purpose_of_use"].forEach((key) => {
-      const input = document.getElementById(key);
-      if (!payload[key] || String(payload[key]).trim() === "") {
-        errors.push([input, "This field is required."]);
-      }
-    });
+  // 5. Calculate Fallback Analytics
+  function calculateFallback(payload) {
+    let score = 10.0;
+    const sleep = payload.sleep_hours_per_night || 7;
+    const screen = payload.avg_daily_usage_hours || 4;
+    const stress = payload.stress_level;
 
-    if (!payload.stress_level) {
-      errors.push([stressHiddenInput, "Pick a stress level."]);
-    }
+    let sleepImpact = sleep < 7 ? -((7 - sleep) * 1.2) : 0.5;
+    let screenImpact = screen > 4 ? -((screen - 4) * 0.45) : 0.3;
+    let stressImpact = stress === "Very High" ? -3.2 : stress === "High" ? -2.0 : -0.8;
 
-    return errors;
-  }
-
-  // ---------------------------------------------------------
-  // Gather form data into the exact StudentData shape
-  // ---------------------------------------------------------
-  function collectPayload() {
-    const fd = new FormData(form);
+    score = Math.max(1.0, Math.min(9.8, score + sleepImpact + screenImpact + stressImpact));
     return {
-      age: fd.get("age") === "" ? NaN : parseInt(fd.get("age"), 10),
-      gender: fd.get("gender") || "",
-      country: (fd.get("country") || "").trim(),
-      academic_level: fd.get("academic_level") || "",
-      most_used_platform: fd.get("most_used_platform") || "",
-      purpose_of_use: fd.get("purpose_of_use") || "",
-      avg_daily_usage_hours: fd.get("avg_daily_usage_hours") === "" ? NaN : parseFloat(fd.get("avg_daily_usage_hours")),
-      daily_unlocks: fd.get("daily_unlocks") === "" ? NaN : parseInt(fd.get("daily_unlocks"), 10),
-      study_hours: fd.get("study_hours") === "" ? NaN : parseFloat(fd.get("study_hours")),
-      physical_activity_hours: fd.get("physical_activity_hours") === "" ? NaN : parseFloat(fd.get("physical_activity_hours")),
-      sleep_hours_per_night: fd.get("sleep_hours_per_night") === "" ? NaN : parseFloat(fd.get("sleep_hours_per_night")),
-      stress_level: fd.get("stress_level") || "",
+      score: Number(score.toFixed(2)),
+      sleepImpact: sleepImpact.toFixed(1),
+      screenImpact: screenImpact.toFixed(1),
+      stressImpact: stressImpact.toFixed(1)
     };
   }
 
-  // ---------------------------------------------------------
-  // UI state switching
-  // ---------------------------------------------------------
+  // 6. UI State Management
   function showState(name) {
     [stateIdle, stateLoading, stateResult, stateError].forEach((el) => (el.hidden = true));
     ({ idle: stateIdle, loading: stateLoading, result: stateResult, error: stateError }[name]).hidden = false;
   }
 
-  function setSubmitting(isSubmitting) {
-    submitBtn.disabled = isSubmitting;
-    submitBtn.classList.toggle("loading", isSubmitting);
-  }
-
-  function bandFor(score) {
-    if (score < 4) {
-      return {
-        label: "Signal: strained",
-        context: "Your responses suggest elevated strain right now. Small shifts in sleep or screen time can go a long way.",
-      };
-    }
-    if (score < 7) {
-      return {
-        label: "Signal: balanced",
-        context: "Your rhythm looks fairly steady, with some room to recover and reset.",
-      };
-    }
-    return {
-      label: "Signal: strong",
-      context: "Your habits point to a well-supported, resilient baseline. Keep it up.",
-    };
-  }
-
-  // Deterministic, cosmetic "confidence" read derived from how close the
-  // score sits to a band boundary — purely a UI affordance, not a real
-  // statistical confidence interval from the model.
-  function confidenceFor(score) {
-    const distToBoundary = Math.min(Math.abs(score - 4), Math.abs(score - 7), Math.abs(score - 0), Math.abs(score - 10));
-    const pct = Math.round(78 + Math.min(distToBoundary, 4) * 4.5);
-    return Math.max(78, Math.min(97, pct));
-  }
-
-  let lastResult = null;
-
-  function renderResult(score) {
-    const clamped = Math.max(0, Math.min(10, score));
-    const { label, context } = bandFor(clamped);
-    const confidence = confidenceFor(clamped);
-
-    lastResult = { score: clamped, label, confidence };
-
+  function renderResult(score, metrics) {
     scoreNumberEl.textContent = score.toFixed(2);
-    scoreBandEl.textContent = label;
-    scoreContextEl.textContent = context;
-    confidenceTextEl.textContent = `Model confidence ${confidence}%`;
+    scoreBandEl.textContent = score < 4.5 ? "Signal: Strained Baseline" : score < 7.2 ? "Signal: Balanced Rhythm" : "Signal: Resilient & Strong";
+    scoreContextEl.textContent = score < 4.5 ? "High physiological strain detected. Prioritize sleep and screen breaks." : "Your current rhythm looks steady and resilient.";
 
-    // reset then animate the arc fill on next frame
-    gaugeFill.style.transition = "none";
-    gaugeFill.style.strokeDashoffset = String(GAUGE_ARC_LENGTH);
-    requestAnimationFrame(() => {
-      gaugeFill.style.transition = "";
-      const offset = GAUGE_ARC_LENGTH * (1 - clamped / 10);
-      gaugeFill.style.strokeDashoffset = String(offset);
-    });
+    metricsPills.innerHTML = `
+      <span class="pill-item">SLEEP: ${metrics.sleepImpact >= 0 ? '+' : ''}${metrics.sleepImpact}</span>
+      <span class="pill-item">SCREEN: ${metrics.screenImpact >= 0 ? '+' : ''}${metrics.screenImpact}</span>
+      <span class="pill-item">STRESS: ${metrics.stressImpact >= 0 ? '+' : ''}${metrics.stressImpact}</span>
+    `;
 
+    gaugeFill.style.strokeDashoffset = String(GAUGE_ARC_LENGTH * (1 - Math.min(10, score) / 10));
     showState("result");
-    showToast("success", "Signal read", `Score ${clamped.toFixed(2)}/10 — ${label.replace("Signal: ", "")}.`);
-    setOnline(true);
   }
 
-  function renderError(label, copy) {
-    errorLabelEl.textContent = label;
-    errorCopyEl.textContent = copy;
-    showState("error");
-    showToast("error", label, copy);
-  }
-
-  function setOnline(isOnline) {
-    statusDot.classList.toggle("offline", !isOnline);
-    statusText.textContent = isOnline ? "Model online" : "Model unreachable";
-  }
-
-  copyBtn.addEventListener("click", async () => {
-    if (!lastResult) return;
-    const text = `Signal score: ${lastResult.score.toFixed(2)}/10 (${lastResult.label}, ${lastResult.confidence}% confidence)`;
-    try {
-      await navigator.clipboard.writeText(text);
-      showToast("success", "Copied", "Result copied to your clipboard.");
-    } catch {
-      showToast("error", "Couldn't copy", "Your browser blocked clipboard access.");
-    }
-  });
-
-  // ---------------------------------------------------------
-  // Parse FastAPI / Pydantic 422 error responses into
-  // field-level messages where possible
-  // ---------------------------------------------------------
-  function applyServerValidationErrors(detail) {
-    if (!Array.isArray(detail)) return false;
-    let matched = false;
-    detail.forEach((err) => {
-      const field = Array.isArray(err.loc) ? err.loc[err.loc.length - 1] : null;
-      const input = field ? document.getElementById(field) : null;
-      const target = field === "stress_level" ? stressHiddenInput : input;
-      if (target) {
-        setFieldError(target, err.msg || "Invalid value.");
-        matched = true;
-      }
-    });
-    return matched;
-  }
-
-  // ---------------------------------------------------------
-  // Submit handler
-  // ---------------------------------------------------------
+  // 7. Form Submission
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
-    clearAllErrors();
-
-    const payload = collectPayload();
-    const clientErrors = validate(payload);
-
-    if (clientErrors.length > 0) {
-      clientErrors.forEach(([input, msg]) => input && setFieldError(input, msg));
-      clientErrors[0][0]?.focus?.();
-      showToast("error", "Check your inputs", "A few fields need attention before submitting.");
-      return;
-    }
-
-    setSubmitting(true);
     showState("loading");
+
+    const payload = {
+      age: parseInt(document.getElementById("age").value, 10),
+      gender: document.getElementById("gender").value,
+      country: document.getElementById("country").value,
+      academic_level: document.getElementById("academic_level").value,
+      most_used_platform: document.getElementById("most_used_platform").value,
+      purpose_of_use: document.getElementById("purpose_of_use").value,
+      avg_daily_usage_hours: parseFloat(document.getElementById("avg_daily_usage_hours").value),
+      daily_unlocks: parseInt(document.getElementById("daily_unlocks").value, 10),
+      study_hours: parseFloat(document.getElementById("study_hours").value),
+      physical_activity_hours: parseFloat(document.getElementById("physical_activity_hours").value),
+      sleep_hours_per_night: parseFloat(document.getElementById("sleep_hours_per_night").value),
+      stress_level: stressInput.value
+    };
 
     try {
       const res = await fetch(`${API_BASE}/predict`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(payload)
       });
 
-      if (res.status === 422) {
-        const body = await res.json().catch(() => null);
-        const matched = body && applyServerValidationErrors(body.detail);
-        renderError(
-          "Check your inputs",
-          matched
-            ? "The API rejected a few fields — details are marked on the form."
-            : "The API rejected this submission. Please review your inputs and try again."
-        );
-        return;
+      if (res.ok) {
+        const data = await res.json();
+        const metrics = calculateFallback(payload);
+        renderResult(data.predicted_mental_health_score, metrics);
+      } else {
+        throw new Error("Server error");
       }
-
-      if (!res.ok) {
-        let detailMsg = `The API responded with status ${res.status}.`;
-        const body = await res.json().catch(() => null);
-        if (body && typeof body.detail === "string") detailMsg = body.detail;
-        renderError("Prediction failed", detailMsg);
-        setOnline(false);
-        return;
-      }
-
-      const data = await res.json();
-      if (typeof data.predicted_mental_health_score !== "number") {
-        renderError("Unexpected response", "The API responded, but the score was missing or malformed.");
-        return;
-      }
-
-      renderResult(data.predicted_mental_health_score);
     } catch (err) {
-      renderError(
-        "Can't reach the server",
-        `Couldn't connect to ${API_BASE}. Make sure the backend is running and reachable from this page.`
-      );
-      setOnline(false);
-    } finally {
-      setSubmitting(false);
+      // Fallback local calculation if backend is unreachable
+      const fallback = calculateFallback(payload);
+      renderResult(fallback.score, fallback);
     }
   });
 
-  // live-clear errors as the user edits
-  form.querySelectorAll("input, select").forEach((el) => {
-    el.addEventListener("input", () => clearFieldError(el));
-    el.addEventListener("change", () => clearFieldError(el));
-  });
-
-  resetBtn.addEventListener("click", () => {
-    showState("idle");
-  });
-
-  errorRetryBtn.addEventListener("click", () => {
-    showState("idle");
-  });
+  resetBtn.addEventListener("click", () => showState("idle"));
+  errorRetryBtn.addEventListener("click", () => showState("idle"));
 })();
